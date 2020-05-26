@@ -34,6 +34,7 @@ void WaitingVehicles::permitEntryToFirstInQueue()
     auto firstVehicle = _vehicles.begin();
 
     // fulfill promise and send signal back that permission to enter has been granted
+    
     firstPromise->set_value();
 
     // remove front elements from both queues
@@ -79,6 +80,7 @@ void Intersection::addVehicleToQueue(std::shared_ptr<Vehicle> vehicle)
     // add new vehicle to the end of the waiting line
     std::promise<void> prmsVehicleAllowedToEnter;
     std::future<void> ftrVehicleAllowedToEnter = prmsVehicleAllowedToEnter.get_future();
+    if (_trafficLight.TrafficLight::getCurrentPhase()!=TrafficLightPhase::green) _trafficLight.TrafficLight::waitForGreen();
     _waitingVehicles.pushBack(vehicle, std::move(prmsVehicleAllowedToEnter));
 
     // wait until the vehicle is allowed to enter
@@ -109,9 +111,10 @@ void Intersection::setIsBlocked(bool isBlocked)
 void Intersection::simulate() // using threads + promises/futures + exceptions
 {
     // FP.6a : In Intersection.h, add a private member _trafficLight of type TrafficLight. At this position, start the simulation of _trafficLight.
-
+    _trafficLight.simulate();
     // launch vehicle queue processing in a thread
     threads.emplace_back(std::thread(&Intersection::processVehicleQueue, this));
+    
 }
 
 void Intersection::processVehicleQueue()

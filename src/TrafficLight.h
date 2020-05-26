@@ -39,6 +39,7 @@ enum TrafficLightPhase {red, green};
 class TrafficLight: public TrafficObject
 {
 public:
+    TrafficLight();
     void waitForGreen();
     void simulate();
     TrafficLightPhase getCurrentPhase();
