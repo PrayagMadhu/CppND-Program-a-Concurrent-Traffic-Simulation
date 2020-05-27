@@ -3,6 +3,7 @@
 #include "TrafficLight.h"
 #include<chrono>
 #include<thread>
+#include<future>
 
 /* Implementation of class "MessageQueue" */
 
@@ -15,7 +16,7 @@ T MessageQueue<T>::receive()
     // The received object should then be returned by the receive function. 
     std::unique_lock<std::mutex> lck(_mtx);
     _cond.wait(lck, [this]{return !_queue.empty();});
-    T cur_msg = _queue.front();
+    T cur_msg = std::move(_queue.front());
     _queue.pop_front();
     
     return cur_msg;
@@ -37,6 +38,7 @@ void MessageQueue<T>::send(T &&msg)
  
 TrafficLight::TrafficLight()
 {
+    _msgs = std::make_shared<MessageQueue<TrafficLightPhase>>();
     _currentPhase = TrafficLightPhase::red;
 }
 
@@ -47,7 +49,7 @@ void TrafficLight::waitForGreen()
     // Once it receives TrafficLightPhase::green, the method returns.
     while(true)
     {
-        TrafficLightPhase signal = _msgs.receive();
+        TrafficLightPhase signal = _msgs->receive();
         if (signal == green) {
             return;
         }
@@ -75,14 +77,24 @@ void TrafficLight::cycleThroughPhases()
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(4,6);
+    auto duration = dis(gen);
+    std::chrono::time_point<std::chrono::system_clock> lastUpdate;
+    long elapsed;
+    lastUpdate = std::chrono::system_clock::now();
     while (true)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(dis(gen)));
-        _currentPhase==red?_currentPhase=green:_currentPhase=red;
-        std::lock_guard<std::mutex> lck(_mutex);
-        _msgs.send(std::move(_currentPhase));
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
+        elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - lastUpdate).count();
+        if (elapsed >= duration)
+        {  
+            std::lock_guard<std::mutex> lck(_mutex);
+            _currentPhase==red?_currentPhase=green:_currentPhase=red;
+            auto msgTask = std::async(std::launch::async, &MessageQueue<TrafficLightPhase>::send, _msgs, std::move(_currentPhase) );
+            msgTask.wait();
+            lastUpdate = std::chrono::system_clock::now();
+            duration = dis(gen);
+        }
+        
 
     }
     
